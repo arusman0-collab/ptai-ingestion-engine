@@ -8,7 +8,9 @@ A portable, provenance-first scholarly ingestion and archival engine whose first
 - `python -m ptai_ingestion discover` — discover permitted local-drop candidates
 - `python -m ptai_ingestion process [QUEUE_ID]` — process eligible candidates, or one numeric queue ID
 - `uvicorn ptai_ingestion.api.app:app` — run the read-only operator API
-- `python -m pytest -q` — run the Python Phase 1 test suite
+- `python -m ptai_ingestion reindex SOURCE_ID` — index one archived source through Ollama/Qdrant
+- `python -m ptai_ingestion rebuild-index` — recreate the non-authoritative vector index
+- `python -m pytest -q` — run the Python test suite
 - `pnpm --filter @workspace/ptai-ingestion-engine run dev` — run the operator dashboard
 - `pnpm run typecheck` — full typecheck across all packages
 - `pnpm run build` — typecheck + build all packages
@@ -36,7 +38,7 @@ A portable, provenance-first scholarly ingestion and archival engine whose first
 - The React dashboard is a development convenience; the CLI and Python engine must work without it.
 - Originals are immutable. Derived metadata and text may be rebuilt without replacing originals.
 - `needs_review` and `rights_hold` stop automated advancement.
-- Qdrant and reasoning models belong to later phases and must remain replaceable.
+- Qdrant is a replaceable, non-authoritative retrieval projection. Ollama `nomic-embed-text` is the configurable production embedding backend; reasoning models are not used.
 
 ## Product
 
@@ -53,7 +55,7 @@ A portable, provenance-first scholarly ingestion and archival engine whose first
 
 ## Gotchas
 
-- Phase 1 intentionally excludes Qdrant, Ollama, transcription, web discovery adapters, and production packaging.
+- Phase 2 requires reachable configured Qdrant and Ollama services for production indexing. Tests use controlled in-memory doubles.
 - Replit development defaults to `./data`; production paths are configuration, never hard-coded.
 - Existing Source IDs and catalog data must never be deleted, changed, or silently merged.
 

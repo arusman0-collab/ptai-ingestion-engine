@@ -1,0 +1,381 @@
+Phase 1 is approved.
+
+Before starting Phase 2, preserve the current known-good state by creating a Git tag:
+
+phase1-approved
+
+Do not modify or rewrite the Phase 1 acceptance commit history.
+
+Now begin Phase 2 only.
+
+PHASE 2 OBJECTIVE
+
+Add the indexing and retrieval layer:
+
+processed archival text
+→ paragraph-aware chunks
+→ nomic-embed-text embeddings
+→ Qdrant
+→ evidence retrieval API
+
+Do NOT implement:
+- web crawling
+- Buletin PILLAR discovery
+- REC discovery
+- YouTube acquisition
+- transcription
+- Whisper
+- OCR enhancements
+- cloud LLM integration
+- reasoning/chatbot behavior
+
+The reasoning model remains outside this phase.
+
+1. CHUNKING
+
+Implement a paragraph-aware chunker.
+
+Configuration must come from config.yml:
+
+chunking:
+  max_chars:
+  min_chars:
+  overlap_chars:
+
+Do not blindly split every N characters.
+
+Preserve paragraph boundaries where possible.
+
+Each chunk must retain:
+
+source_id
+manifestation_id if available
+chunk_index
+title
+publisher
+source_url
+language
+section heading if available
+page if available
+timestamp if available
+exact chunk text
+chunking_version
+
+Chunking must be deterministic for the same source text and configuration.
+
+2. EMBEDDINGS
+
+Implement an embedding service abstraction.
+
+Current default backend:
+
+Ollama
+
+Current model:
+
+nomic-embed-text
+
+Current expected dimensions:
+
+768
+
+For document embeddings use the appropriate document prefix:
+
+search_document:
+
+For search queries use:
+
+search_query:
+
+Do not hard-code the model name or dimensions in pipeline logic.
+
+Use configuration.
+
+Record embedding model/version information sufficient to reproduce the index.
+
+Do not introduce Qwen or any reasoning LLM dependency.
+
+3. QDRANT REPOSITORY
+
+Implement a dedicated Qdrant repository/service layer.
+
+Do not scatter Qdrant HTTP/client calls throughout application code.
+
+Configuration:
+
+qdrant:
+  url:
+  collection:
+
+Current production defaults:
+
+url: http://localhost:6333
+collection: ptai_sources
+
+Development/test values must remain configurable.
+
+The system must create the collection if absent, using the configured vector dimensions and cosine distance.
+
+Do not silently recreate or destroy an existing collection whose vector configuration is incompatible.
+
+Fail safely and explain the mismatch.
+
+4. VECTOR PAYLOAD
+
+Each indexed chunk must contain at least:
+
+source_id
+manifestation_id
+chunk_index
+title
+publisher
+source_url
+language
+text
+section_heading
+page
+timestamp
+chunking_version
+embedding_model
+
+Do not expose local archive filesystem paths in Qdrant payloads.
+
+5. STABLE VECTOR IDS
+
+Point IDs must be deterministic and globally unique.
+
+Use a deterministic hash derived from:
+
+source_id
+manifestation_id
+chunk_index
+chunking_version
+
+Re-indexing the same unchanged source must produce the same point IDs.
+
+Never use simple integers such as chunk_index alone.
+
+6. IDEMPOTENT INDEXING
+
+Indexing the same source repeatedly must not create duplicates.
+
+Reindexing one source must only replace vectors belonging to that source.
+
+It must never delete or overwrite another source.
+
+Provide:
+
+ptai-ingest reindex SOURCE_ID
+
+and
+
+ptai-ingest rebuild-index
+
+rebuild-index must recreate Qdrant entirely from authoritative archival/catalog data.
+
+Remember:
+
+Qdrant is NOT authoritative.
+
+The authoritative data remains:
+- originals
+- processed text
+- metadata
+- SQLite catalog
+- audit history
+
+7. PIPELINE INTEGRATION
+
+Extend the successful Phase 1 lifecycle so that a cataloged source can become indexed.
+
+Prefer adding an explicit indexed state if needed, but maintain clear lifecycle semantics.
+
+Do not break existing Phase 1 ingestion.
+
+If Qdrant or embedding generation fails:
+- preserve the already archived source
+- record the failure
+- allow retry
+- do not corrupt catalog state
+
+8. SEARCH / RETRIEVAL API
+
+Implement:
+
+POST /api/search
+
+Example request:
+
+{
+  "query": "What did Stephen Tong say about...",
+  "limit": 8,
+  "collection": "stephen-tong"
+}
+
+Return evidence only.
+
+Response evidence fields must include:
+
+score
+source_id
+manifestation_id
+title
+chunk_index
+text
+publisher
+source_url
+language
+section_heading
+page
+timestamp
+
+Do NOT generate an AI answer.
+
+Do NOT call Qwen.
+
+The endpoint is retrieval only.
+
+9. SEARCH QUERY EMBEDDING
+
+Search queries must use the configured embedding model and the query prefix:
+
+search_query:
+
+Do not use document-prefix embeddings for search queries.
+
+10. INDEX VERSIONING
+
+Add sufficient version metadata so future changes to:
+
+chunking strategy
+embedding model
+embedding dimensions
+
+can be detected.
+
+Do not silently mix incompatible vector generations.
+
+At minimum record:
+
+chunking_version
+embedding_model
+embedding_dimensions
+
+11. TESTING
+
+Add unit tests for:
+
+- paragraph-aware chunking
+- deterministic chunks
+- stable vector point IDs
+- embedding prefix behavior
+- payload construction
+- config validation
+- vector configuration mismatch handling
+
+Add integration tests for:
+
+- cataloged local source → indexed in Qdrant
+- search retrieves that source
+- indexing same source twice creates no duplicate
+- reindexing source A does not modify source B
+- Qdrant failure leaves archive/catalog intact
+- rebuild-index reconstructs vectors from authoritative data
+- search API returns evidence with provenance
+- no local archive filesystem paths appear in API or Qdrant payloads
+
+Use a test Qdrant instance or a controlled test double where appropriate.
+
+Do not make the full test suite depend on the production PT-AI server.
+
+12. DEVELOPMENT FALLBACK
+
+If Ollama/Qdrant are unavailable inside Replit during development:
+
+implement clean abstractions and test doubles.
+
+Do NOT replace the intended production architecture with proprietary Replit AI/vector services.
+
+The production implementation must still target:
+
+Ollama
++
+nomic-embed-text
++
+Qdrant
+
+13. DASHBOARD
+
+Add an Indexing section showing:
+
+Indexed sources
+Index failures
+Embedding model
+Qdrant status
+
+Add source detail information showing whether the source is indexed.
+
+Do not turn the dashboard into a chatbot.
+
+14. DOCUMENTATION
+
+Update README with:
+
+Qdrant setup
+Ollama embedding setup
+nomic-embed-text installation/pull
+indexing commands
+reindex
+rebuild-index
+search API
+troubleshooting
+index recovery
+
+Clearly document that Qdrant can be deleted and rebuilt.
+
+15. PHASE 2 ACCEPTANCE TEST
+
+Create two temporary local-drop documents.
+
+Ingest both.
+
+Index both.
+
+Verify:
+
+A. Both are searchable.
+
+B. Re-indexing source 1 does not alter source 2.
+
+C. Re-running indexing does not increase vector count.
+
+D. Search returns source IDs and exact supporting text.
+
+E. Delete the test Qdrant collection.
+
+F. Run rebuild-index.
+
+G. Verify both sources return again.
+
+H. Verify the SQLite catalog and preserved originals were unaffected.
+
+FINAL REPORT MUST INCLUDE:
+
+FILES CHANGED
+ARCHITECTURE CHANGES
+CHUNKING METHOD
+EMBEDDING CONFIGURATION
+QDRANT CONFIGURATION
+VECTOR ID STRATEGY
+TEST RESULTS
+TOTAL TEST COUNT
+IDEMPOTENCY TEST RESULT
+REINDEX ISOLATION RESULT
+REBUILD-INDEX RESULT
+SEARCH API EXAMPLE
+DASHBOARD RESULT
+KNOWN LIMITATIONS
+
+Do not proceed to Phase 3.
+
+BEGIN PHASE 2 ONLY.

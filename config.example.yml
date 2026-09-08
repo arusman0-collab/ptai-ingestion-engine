@@ -12,12 +12,13 @@ approved_sources:
     collection: stephen-tong
     rights_status: permitted_archive
 chunking:
-  max_size: 1800
-  min_size: 300
-  overlap: 150
+  max_chars: 1800
+  min_chars: 300
+  overlap_chars: 150
 embedding:
   model: nomic-embed-text
   dimensions: 768
+  version: nomic-embed-text
 qdrant:
   url: http://localhost:6333
   collection: ptai_sources

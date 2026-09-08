@@ -17,6 +17,7 @@ import Queue from '@/pages/queue';
 import Sources from '@/pages/sources';
 import SourceDetail from '@/pages/source-detail';
 import Events from '@/pages/events';
+import Indexing from '@/pages/indexing';
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ function Router() {
           <Route path="/sources" component={Sources} />
           <Route path="/sources/:id" component={SourceDetail} />
           <Route path="/events" component={Events} />
+          <Route path="/indexing" component={Indexing} />
           <Route component={NotFound} />
         </Switch>
       </RoutedErrorBoundary>

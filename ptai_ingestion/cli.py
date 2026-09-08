@@ -8,6 +8,9 @@ from .storage import ArchiveStorage
 from .pipeline import Pipeline
 from .adapters.local_drop import LocalDropAdapter
 from .hashing import sha256_file
+from .embeddings import OllamaEmbeddingService
+from .vector import QdrantRepository
+from .indexing import Indexer
 app=typer.Typer(help="PT-AI provenance-first ingestion engine")
 def services(config=None):
  s=load_settings(config); c=Catalog(s.database_path); c.migrate(); c.ensure_collections(s.collections); return s,c,Pipeline(c,ArchiveStorage(s.data_root))
@@ -48,6 +51,16 @@ def review(config: str|None=None):
 @app.command()
 def retry(failed: bool=typer.Option(False,"--failed"), config: str|None=None): typer.echo("Retry requires explicit human review in Phase 1; no held source was advanced.")
 @app.command()
-def reindex(source_id:str, config:str|None=None): typer.echo("Indexing begins in Phase 2; archive data remains authoritative.")
+def reindex(source_id:str, config:str|None=None):
+ s,c,_=services(config)
+ try:
+  count=Indexer(c,s,OllamaEmbeddingService(s.ollama.url,s.embedding.model,s.embedding.dimensions),QdrantRepository(s.qdrant.url,s.qdrant.collection)).index_source(source_id)
+  typer.echo(f"indexed {source_id}: {count} chunks")
+ finally: c.close()
 @app.command("rebuild-index")
-def rebuild_index(config:str|None=None): typer.echo("Indexing begins in Phase 2; no vector index is managed.")
+def rebuild_index(config:str|None=None):
+ s,c,_=services(config)
+ try:
+  count=Indexer(c,s,OllamaEmbeddingService(s.ollama.url,s.embedding.model,s.embedding.dimensions),QdrantRepository(s.qdrant.url,s.qdrant.collection)).rebuild()
+  typer.echo(f"rebuilt index: {count} chunks")
+ finally: c.close()

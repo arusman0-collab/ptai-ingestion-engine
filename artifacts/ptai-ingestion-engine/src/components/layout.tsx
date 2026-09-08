@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { BookOpen, Database, Inbox, Activity } from "lucide-react";
+import { BookOpen, Database, Inbox, Activity, Layers3 } from "lucide-react";
 import { cn } from "@/components/ui/core";
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -9,6 +9,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/", label: "Overview", icon: Activity },
     { href: "/queue", label: "Discovery Queue", icon: Inbox },
     { href: "/sources", label: "Canonical Catalog", icon: BookOpen },
+    { href: "/indexing", label: "Indexing", icon: Layers3 },
     { href: "/events", label: "Audit Events", icon: Database },
   ];
 
@@ -25,7 +26,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             const Icon = item.icon;
             const isActive = location === item.href || (item.href !== "/" && location.startsWith(item.href));
             return (
-              <Link key={item.href} href={item.href} className={cn(
+              <Link key={item.href} data-testid={`link-nav-${item.label.toLowerCase().replace(/\s+/g, "-")}`} href={item.href} className={cn(
                 "flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-sm transition-colors",
                 isActive ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-muted hover:text-foreground"
               )}>
@@ -37,7 +38,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="p-4 border-t border-border">
           <div className="text-xs text-muted-foreground bg-muted p-3 rounded-sm border border-border/50 shadow-inner">
-            <span className="font-semibold text-foreground block mb-1">Phase 1 Live Data</span>
+            <span className="font-semibold text-foreground block mb-1">Live Operator Data</span>
             Connected to the operator API. Data refreshes every 30 seconds.
           </div>
         </div>

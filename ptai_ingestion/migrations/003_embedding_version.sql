@@ -1,0 +1,1 @@
+ALTER TABLE source_index_versions ADD COLUMN embedding_version TEXT;

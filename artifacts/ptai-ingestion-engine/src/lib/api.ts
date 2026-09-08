@@ -30,6 +30,18 @@ export interface StatusGroup {
   by_status: Partial<Record<LifecycleState, number>>;
 }
 export interface StatusResponse { sources: StatusGroup; queue: StatusGroup; }
+export interface QdrantStatus {
+  status: string;
+  collection: string;
+  url: string;
+}
+export interface IndexStatusResponse {
+  indexed_sources: number;
+  index_failures: number;
+  embedding_model: string;
+  embedding_dimensions: number;
+  qdrant: QdrantStatus;
+}
 export interface ListResponse<T> { items: T[]; total: number; }
 export interface ReviewResponse { sources: SourceRecord[]; queue_candidates: QueueItem[]; total: number; }
 export interface SourceDetailResponse { source: SourceRecord; events: ProcessingEvent[]; }
@@ -43,6 +55,7 @@ async function get<T>(path: string): Promise<T> {
 }
 const liveQuery = { staleTime: 15_000, refetchInterval: 30_000, refetchIntervalInBackground: false, retry: 1 };
 export const useStatus = () => useQuery({ queryKey: ["status"], queryFn: () => get<StatusResponse>("/api/status"), ...liveQuery });
+export const useIndexStatus = () => useQuery({ queryKey: ["index-status"], queryFn: () => get<IndexStatusResponse>("/api/index/status"), ...liveQuery });
 export const useSources = () => useQuery({ queryKey: ["sources"], queryFn: () => get<ListResponse<SourceSummary>>("/api/sources"), ...liveQuery });
 export const useSource = (id?: string) => useQuery({ queryKey: ["source", id], queryFn: () => get<SourceDetailResponse>(`/api/sources/${encodeURIComponent(id!)}`), enabled: !!id, ...liveQuery });
 export const useQueue = () => useQuery({ queryKey: ["queue"], queryFn: () => get<ListResponse<QueueItem>>("/api/queue"), ...liveQuery });

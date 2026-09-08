@@ -27,9 +27,10 @@ TRANSITIONS: dict[Lifecycle, set[Lifecycle]] = {
     Lifecycle.APPROVED: {Lifecycle.ACQUIRED, Lifecycle.NEEDS_REVIEW, Lifecycle.RIGHTS_HOLD, Lifecycle.UNAVAILABLE},
     Lifecycle.ACQUIRED: {Lifecycle.EXTRACTED, Lifecycle.EXTRACTION_FAILED, Lifecycle.NEEDS_REVIEW},
     Lifecycle.EXTRACTED: {Lifecycle.INDEXED, Lifecycle.INDEXING_FAILED, Lifecycle.CATALOGED},
-    Lifecycle.INDEXED: {Lifecycle.CATALOGED},
+    Lifecycle.INDEXED: {Lifecycle.CATALOGED, Lifecycle.INDEXING_FAILED},
+    Lifecycle.CATALOGED: {Lifecycle.INDEXED, Lifecycle.INDEXING_FAILED},
     Lifecycle.EXTRACTION_FAILED: {Lifecycle.NEEDS_REVIEW},
-    Lifecycle.INDEXING_FAILED: {Lifecycle.NEEDS_REVIEW},
+    Lifecycle.INDEXING_FAILED: {Lifecycle.NEEDS_REVIEW, Lifecycle.INDEXED, Lifecycle.INDEXING_FAILED},
 }
 
 

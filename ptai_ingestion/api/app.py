@@ -10,9 +10,12 @@ from collections.abc import Iterator
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException
+from pydantic import BaseModel, Field
 
 from ..catalog import Catalog
 from ..config import Settings, load_settings
+from ..embeddings import OllamaEmbeddingService, EmbeddingService
+from ..vector import QdrantRepository, VectorRepository
 
 
 SOURCE_FIELDS = (
@@ -44,7 +47,13 @@ def _counts(catalog: Catalog, table: str, state_column: str) -> dict[str, int]:
     return {row[state_column]: row["count"] for row in rows}
 
 
-def create_app(config_path: str | None = None) -> FastAPI:
+class SearchRequest(BaseModel):
+    query: str = Field(min_length=1)
+    limit: int = Field(default=8, ge=1, le=100)
+    collection: str | None = None
+
+def create_app(config_path: str | None = None, *, embeddings: EmbeddingService | None = None,
+               vectors: VectorRepository | None = None) -> FastAPI:
     settings: Settings = load_settings(config_path)
 
     # Initialization is short-lived too; request handlers never retain it.
@@ -56,6 +65,8 @@ def create_app(config_path: str | None = None) -> FastAPI:
         initializer.close()
 
     app = FastAPI(title="PT-AI Ingestion Operator API", version="0.1.0")
+    embedding_service = embeddings or OllamaEmbeddingService(settings.ollama.url, settings.embedding.model, settings.embedding.dimensions)
+    vector_repository = vectors or QdrantRepository(settings.qdrant.url, settings.qdrant.collection)
 
     def get_catalog() -> Iterator[Catalog]:
         catalog = Catalog(settings.database_path)
@@ -94,10 +105,22 @@ def create_app(config_path: str | None = None) -> FastAPI:
         events = catalog.conn.execute(
             "SELECT * FROM processing_events WHERE source_id=? ORDER BY id", (source_id,)
         ).fetchall()
+        index_version = catalog.conn.execute("SELECT chunking_version,embedding_model,embedding_version,embedding_dimensions,indexed_at FROM source_index_versions WHERE source_id=?", (source_id,)).fetchone()
         return {
-            "source": _shape(record, SOURCE_FIELDS),
+            "source": {**_shape(record, SOURCE_FIELDS), "index": dict(index_version) if index_version else None},
             "events": [_shape(event, EVENT_FIELDS) for event in events],
         }
+
+    @app.get("/api/index/status")
+    def index_status(catalog: Catalog = Depends(get_catalog)) -> dict[str, Any]:
+        indexed = catalog.conn.execute("SELECT count(*) FROM sources WHERE archive_status='indexed'").fetchone()[0]
+        failures = catalog.conn.execute("SELECT count(*) FROM sources WHERE archive_status='indexing_failed'").fetchone()[0]
+        try:
+            health = vector_repository.health()
+        except Exception as exc:
+            health = {"status": "unavailable", "collection": settings.qdrant.collection, "url": settings.qdrant.url, "error": str(exc)}
+        return {"indexed_sources": indexed, "index_failures": failures, "embedding_model": settings.embedding.model,
+                "embedding_dimensions": settings.embedding.dimensions, "qdrant": health}
 
     @app.get("/api/queue")
     def queue(
@@ -129,6 +152,18 @@ def create_app(config_path: str | None = None) -> FastAPI:
             "queue_candidates": queue_candidates,
             "total": len(source_items) + len(queue_candidates),
         }
+
+    @app.post("/api/search")
+    def search(request: SearchRequest) -> dict[str, Any]:
+        """Evidence retrieval only: no answer generation or reasoning-model call."""
+        try:
+            results = vector_repository.search(embedding_service.embed_query(request.query), request.limit, request.collection)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail=f"search unavailable: {exc}") from exc
+        allowed = ("source_id", "manifestation_id", "title", "chunk_index", "text", "publisher",
+                   "source_url", "language", "section_heading", "page", "timestamp")
+        return {"evidence": [{"score": item["score"], **{key: item.get("payload", {}).get(key) for key in allowed}}
+                             for item in results]}
 
     return app
 

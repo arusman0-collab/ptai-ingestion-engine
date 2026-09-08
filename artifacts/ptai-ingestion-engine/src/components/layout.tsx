@@ -37,8 +37,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
         <div className="p-4 border-t border-border">
           <div className="text-xs text-muted-foreground bg-muted p-3 rounded-sm border border-border/50 shadow-inner">
-            <span className="font-semibold text-foreground block mb-1">Phase 1 Development</span>
-            Using local sample data fixtures for ST-000001 through ST-000003.
+            <span className="font-semibold text-foreground block mb-1">Phase 1 Live Data</span>
+            Connected to the operator API. Data refreshes every 30 seconds.
           </div>
         </div>
       </aside>

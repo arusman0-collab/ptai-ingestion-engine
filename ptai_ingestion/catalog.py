@@ -35,6 +35,9 @@ class Catalog:
         self.conn.row_factory = sqlite3.Row
         self.conn.execute("PRAGMA foreign_keys=ON")
 
+    def close(self) -> None:
+        self.conn.close()
+
     def migrate(self, migrations: Path | None = None) -> None:
         migrations = migrations or Path(__file__).parent / "migrations"
         self.conn.execute("CREATE TABLE IF NOT EXISTS schema_migrations (version TEXT PRIMARY KEY, applied_at TEXT NOT NULL)")
@@ -89,7 +92,10 @@ class Catalog:
     def source(self, source_id: str):
         return self.conn.execute("SELECT * FROM sources WHERE source_id = ?", (source_id,)).fetchone()
 
-    def transition(self, source_id: str, new: str, stage: str, message: str | None = None) -> None:
+    def transition(
+        self, source_id: str, new: str, stage: str, message: str | None = None,
+        *, status: str = "ok", error: str | None = None,
+    ) -> None:
         source = self.source(source_id)
         if source is None:
             raise ValueError(f"unknown source: {source_id}")
@@ -100,7 +106,7 @@ class Catalog:
             raise ValueError(f"invalid lifecycle transition {old} -> {new}")
         self.conn.execute("UPDATE sources SET archive_status=?, updated_at=? WHERE source_id=?", (new, now(), source_id))
         self.conn.commit()
-        self.event(source_id, stage, old, new, message=message)
+        self.event(source_id, stage, old, new, status=status, message=message, error=error)
 
     def counts(self) -> dict[str, int]:
         return dict(self.conn.execute("SELECT archive_status, count(*) FROM sources GROUP BY archive_status").fetchall())

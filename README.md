@@ -15,7 +15,7 @@ uvicorn ptai_ingestion.api.app:app
 pytest
 ```
 
-`process ST-000123` targets a queued source already allocated that ID. The API exposes `/api/status`, `/api/sources`, `/api/sources/{source_id}`, `/api/queue`, and `/api/review`; it never serves originals or processed copyrighted files.
+`process` processes all new candidates. `process QUEUE_ID` targets the numeric queue ID shown by `ptai-ingest queue`; an unknown or non-new ID is an explicit error, never a silent no-op. Source IDs are allocated only when eligible processing begins and are permanent. The API exposes `/api/status`, `/api/sources`, `/api/sources/{source_id}`, `/api/queue`, and `/api/review`; it never serves originals or processed copyrighted files.
 
 ## Archive and integrity
 

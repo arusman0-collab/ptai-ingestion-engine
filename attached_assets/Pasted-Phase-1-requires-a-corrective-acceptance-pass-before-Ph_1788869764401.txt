@@ -1,0 +1,215 @@
+Phase 1 requires a corrective acceptance pass before Phase 2.
+
+Do NOT implement Qdrant, Ollama embeddings, Whisper/transcription, web crawling, or Phase 2 features yet.
+
+I reviewed the exported project externally and found several Phase 1 issues that must be fixed.
+
+1. CONNECT THE DASHBOARD TO THE REAL PYTHON BACKEND
+
+The current React dashboard still imports mock fixture data such as:
+
+MOCK_SOURCES
+MOCK_EVENTS
+MOCK_LIFECYCLE_COUNTS
+MOCK_QUEUE_CANDIDATES
+
+This is acceptable for design prototyping but not for Phase 1 acceptance.
+
+Replace runtime mock data with calls to the actual FastAPI endpoints.
+
+At minimum the dashboard must retrieve live data from:
+
+GET /api/status
+GET /api/sources
+GET /api/sources/{source_id}
+GET /api/queue
+GET /api/review
+
+Development fixture data may remain only in tests or explicit demo mode.
+
+The visible dashboard must clearly represent actual SQLite state.
+
+2. FIX SQLITE / FASTAPI THREADING AND CONNECTION MANAGEMENT
+
+The current FastAPI application keeps one sqlite3 connection in a Catalog instance created during app initialization.
+
+This produces an error similar to:
+
+sqlite3.ProgrammingError:
+SQLite objects created in a thread can only be used in that same thread.
+
+Do NOT solve this merely by globally setting check_same_thread=False on one shared long-lived connection unless you can justify concurrency safety.
+
+Prefer a proper per-request / short-lived SQLite connection strategy or another simple safe repository pattern appropriate for SQLite + FastAPI.
+
+The CLI may continue to use its own connection.
+
+Add API integration tests proving the endpoints work through FastAPI TestClient.
+
+3. FIX CONFIGURATION MODEL
+
+config.example.yml currently contains:
+
+chunking
+embedding
+qdrant
+ollama
+
+but Settings does not accept all of those fields.
+
+Following the README instruction:
+
+cp config.example.yml config.yml
+
+must work without exceptions.
+
+Add configuration structures for the existing PRD sections, even though Phase 2 services are not contacted yet.
+
+At minimum configuration should safely represent:
+
+environment
+data_root
+database_path
+logging_level
+collections
+approved_sources
+chunking
+embedding
+qdrant
+ollama
+
+Phase 1 must not connect to Qdrant or Ollama.
+
+These are configuration placeholders for later phases only.
+
+Add a test that loads config.example.yml successfully.
+
+4. FIX PROCESS BY SOURCE ID BEHAVIOR
+
+README states:
+
+ptai-ingest process ST-000123
+
+but discovery_queue.source_id is normally NULL until processing begins.
+
+Either:
+
+A. allocate a stable Source ID during the appropriate pre-processing/catalog step,
+
+or
+
+B. change the command semantics so targeting a queue item is actually possible and clearly documented.
+
+Do not leave a documented CLI command that silently processes nothing.
+
+Preserve the rule that Source IDs are permanent and never reused.
+
+5. FIX EXTRACTION FAILURE AUDIT DUPLICATION
+
+The extraction exception path currently calls transition(... extraction_failed ...), which already creates an event, and then separately creates another extraction failure event.
+
+Ensure a single logical lifecycle failure does not create misleading duplicate audit events.
+
+Retain sufficient error detail.
+
+6. ADD END-TO-END PHASE 1 API TESTS
+
+Current 8 tests pass, but they missed runtime API failures.
+
+Add tests covering:
+
+- config.example.yml loads
+- /api/status returns 200
+- /api/sources returns 200
+- /api/queue returns 200
+- /api/review returns 200
+- /api/sources/{source_id} returns the actual ingested record
+- dashboard/API data reflects an ingested local source
+- rights_hold candidate is visible to the operator
+- extraction failure is visible to the operator
+- no endpoint exposes original copyrighted file contents
+
+7. DASHBOARD STATUS VOCABULARY MUST MATCH BACKEND
+
+Do not invent dashboard-only lifecycle labels such as:
+
+archived
+cleared
+processing
+
+where the canonical backend vocabulary is:
+
+new
+verified
+approved
+acquired
+extracted
+cataloged
+duplicate
+needs_review
+rights_hold
+extraction_failed
+etc.
+
+Use one shared conceptual vocabulary.
+
+Frontend display labels can be prettier, but underlying states must map exactly and explicitly.
+
+8. REMOVE MISLEADING FIXTURE REPRESENTATIONS
+
+Do not show fabricated ST-000001 / ST-000002 / ST-000003 records as though they are current operational records unless the screen clearly says DEMO DATA.
+
+The real production PT-AI records must eventually be imported separately and must never be silently recreated from frontend fixtures.
+
+9. KEEP REPLIT-SPECIFIC COMPONENTS OUTSIDE THE PORTABLE CORE
+
+It is acceptable for Replit development scaffolding to exist.
+
+However:
+
+ptai_ingestion/
+SQLite schema
+CLI
+FastAPI API
+archive storage
+tests
+
+must remain independently runnable without Replit proprietary services.
+
+Document which files are Replit development scaffolding versus portable PT-AI production code.
+
+10. DO NOT START PHASE 2 YET
+
+When all corrections are complete:
+
+run the full Python test suite
+
+run frontend typecheck/build
+
+run API integration tests
+
+perform one actual local-drop ingestion using a temporary development data directory
+
+then verify that the dashboard displays that real ingested source.
+
+Final report must contain:
+
+FILES CHANGED
+
+BUGS FIXED
+
+API TEST RESULTS
+
+TOTAL TEST COUNT
+
+FRONTEND BUILD RESULT
+
+CONFIG LOAD RESULT
+
+ACTUAL LOCAL INGESTION RESULT
+
+DASHBOARD LIVE-DATA VERIFICATION
+
+KNOWN LIMITATIONS
+
+Do not proceed to Phase 2 until this corrective Phase 1 acceptance pass is complete.

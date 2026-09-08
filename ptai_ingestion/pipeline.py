@@ -26,13 +26,16 @@ class Pipeline:
         for candidate in adapter.discover():
             self.catalog.queue(**candidate)
 
-    def process(self, source_id: str | None = None) -> None:
+    def process(self, queue_id: int | None = None) -> None:
         query = "SELECT * FROM discovery_queue WHERE status='new'"
         parameters: tuple = ()
-        if source_id:
-            query += " AND source_id=?"
-            parameters = (source_id,)
-        for candidate in self.catalog.conn.execute(query, parameters).fetchall():
+        if queue_id is not None:
+            query += " AND id=?"
+            parameters = (queue_id,)
+        candidates = self.catalog.conn.execute(query, parameters).fetchall()
+        if queue_id is not None and not candidates:
+            raise ValueError(f"no new queue candidate with id {queue_id}")
+        for candidate in candidates:
             self._process_item(candidate)
 
     def _process_item(self, candidate) -> None:
@@ -110,5 +113,17 @@ class Pipeline:
             self.catalog.conn.execute("UPDATE discovery_queue SET status='cataloged' WHERE id=?", (candidate["id"],))
             self.catalog.conn.commit()
         except Exception as exc:
-            self.catalog.transition(source_id, "extraction_failed", "extraction", str(exc))
-            self.catalog.event(source_id, "extraction", "acquired", "extraction_failed", "failed", error=str(exc))
+            error = str(exc)
+            self.catalog.conn.execute(
+                "UPDATE sources SET error_log=?, updated_at=? WHERE source_id=?",
+                (error, now(), source_id),
+            )
+            self.catalog.conn.execute(
+                "UPDATE discovery_queue SET status='extraction_failed', error=? WHERE id=?",
+                (error, candidate["id"]),
+            )
+            self.catalog.conn.commit()
+            self.catalog.transition(
+                source_id, "extraction_failed", "extraction", error,
+                status="failed", error=error,
+            )

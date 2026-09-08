@@ -7,6 +7,17 @@ id = "artifacts/ptai-ingestion-engine"
 router = "path"
 
 [[services]]
+name = "api"
+paths = [ "/ptai-api" ]
+localPort = 8000
+
+[services.development]
+run = "python -m uvicorn replit_api:app --app-dir artifacts/ptai-ingestion-engine --host 0.0.0.0 --port $PORT"
+
+[services.env]
+PORT = "8000"
+
+[[services]]
 name = "web"
 paths = [ "/" ]
 localPort = 23667

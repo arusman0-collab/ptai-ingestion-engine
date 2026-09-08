@@ -11,6 +11,18 @@ out-tsc
 # dependencies
 node_modules
 
+# Python build and test artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.pythonlibs/
+
+# Local archive runtime state and secrets
+data/
+.env
+config.yml
+
 # IDEs and editors
 /.idea
 .project

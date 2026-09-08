@@ -5,6 +5,7 @@ from ptai_ingestion.config import load_settings
 from ptai_ingestion.hashing import sha256_file
 from ptai_ingestion.models import can_transition
 from ptai_ingestion.storage import ArchiveStorage
+from ptai_ingestion.pipeline import Pipeline
 
 
 def catalog(tmp_path):
@@ -65,3 +66,18 @@ def test_config_data_root_environment_override(tmp_path, monkeypatch):
     settings = load_settings(config)
     assert settings.data_root == tmp_path / "environment-data"
     assert settings.database_path == tmp_path / "environment-data" / "catalog" / "ptai_catalog.db"
+
+
+def test_config_example_loads_with_inert_phase_two_placeholders():
+    settings = load_settings("config.example.yml")
+    assert settings.chunking.max_size == 1800
+    assert settings.embedding.dimensions == 768
+    assert settings.qdrant.collection == "ptai_sources"
+    assert settings.ollama.url == "http://localhost:11434"
+
+
+def test_targeting_unknown_queue_id_is_an_explicit_error(tmp_path):
+    instance = catalog(tmp_path)
+    pipeline = Pipeline(instance, ArchiveStorage(tmp_path / "data"))
+    with pytest.raises(ValueError, match="no new queue candidate with id 999"):
+        pipeline.process(queue_id=999)

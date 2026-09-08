@@ -25,10 +25,12 @@ def discover(config: str|None=None, adapter: str="local_drop", dry_run:bool=Fals
 def queue(config: str|None=None, json_output:bool=typer.Option(False,"--json")):
  _,c,_=services(config); rows=[dict(x) for x in c.conn.execute("SELECT * FROM discovery_queue ORDER BY id").fetchall()]; typer.echo(json.dumps(rows,default=str) if json_output else "\n".join(f"{x['id']} {x['status']} {x['title']}" for x in rows))
 @app.command()
-def process(source_id: str|None=None, config: str|None=None, dry_run:bool=False):
+def process(queue_id: int|None=None, config: str|None=None, dry_run:bool=False):
  _,_,p=services(config)
  if dry_run: typer.echo("dry-run: no sources processed"); return
- p.process(source_id); typer.echo("processing complete")
+ try: p.process(queue_id)
+ except ValueError as exc: raise typer.BadParameter(str(exc))
+ typer.echo("processing complete")
 @app.command()
 def status(config: str|None=None, json_output:bool=typer.Option(False,"--json")):
  _,c,_=services(config); result={"sources":c.counts(),"queue":dict(c.conn.execute("SELECT status,count(*) FROM discovery_queue GROUP BY status").fetchall())}; typer.echo(json.dumps(result) if json_output else result)

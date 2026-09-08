@@ -1,0 +1,2279 @@
+# PT-AI INGESTION ENGINE
+
+## Replit Master Build Specification / PRD v1.1
+
+You are building the ingestion and archival subsystem for a larger project called **PT-AI**.
+
+Read this entire specification before writing code.
+
+Do not simplify or redesign the fundamental architecture without explaining why.
+
+---
+
+# 1. PROJECT PURPOSE
+
+PT-AI is a non-commercial digital knowledge-preservation project initially focused on the documented sermons, lectures, writings, transcripts, books, and related source material of **Rev. Stephen Tong**.
+
+The long-term objective is not merely to build a chatbot.
+
+The durable asset is a:
+
+**Digital Scholarly Archive + Provenance System + Retrieval Layer**
+
+that AI models can reason over.
+
+The reasoning LLM is replaceable.
+
+The archive is not.
+
+The architecture must eventually support additional Christian thinkers, theologians, preachers, historical figures, and sources referenced by Stephen Tong without requiring a fundamental redesign.
+
+Possible future collections may include people such as Augustine, Calvin, Luther, Billy Graham, Nabeel Qureshi, and others.
+
+Therefore:
+
+DO NOT design this as a Stephen-Tong-specific chatbot.
+
+Design it as a reusable scholarly ingestion and archival platform whose first collection is Stephen Tong.
+
+---
+
+# 2. CORE DESIGN PRINCIPLE
+
+PT-AI must optimize for:
+
+1. Preservation
+2. Provenance
+3. Source fidelity
+4. Reproducibility
+5. Auditability
+6. Traceable citations
+7. Offline/local operation
+8. Portability
+9. Replaceable AI models
+10. Long-term archival integrity
+
+The system must always distinguish:
+
+ORIGINAL SOURCE
+
+from
+
+EXTRACTED / TRANSCRIBED MATERIAL
+
+from
+
+AI-DERIVED MATERIAL.
+
+AI-generated material must never silently become a primary historical source.
+
+---
+
+# 3. EXISTING PT-AI PRODUCTION ENVIRONMENT
+
+The permanent target environment currently consists of:
+
+Host OS:
+Oracle Linux 9
+
+CPU:
+AMD Ryzen 5 5600
+
+GPU:
+NVIDIA RTX 3060
+12 GB VRAM
+
+RAM:
+currently 16 GB DDR4-3200
+
+Dedicated PT-AI storage:
+/ptai-data
+
+Storage:
+1 TB XFS dedicated data volume
+
+Local inference:
+Ollama
+
+Current test reasoning model:
+Qwen 2.5 7B
+
+IMPORTANT:
+Qwen is replaceable and must NOT become an architectural dependency.
+
+Current embedding model:
+nomic-embed-text
+
+Embedding dimensions:
+768
+
+Vector database:
+Qdrant
+
+Current Qdrant collection:
+ptai_sources
+
+Catalog database:
+SQLite
+
+Current intended catalog path:
+
+/ptai-data/pak-tong/catalog/ptai_catalog.db
+
+Existing logical archive structure includes:
+
+original/
+processed/
+metadata/
+index/
+catalog/
+
+The broader permanent data structure may include:
+
+/ptai-data/
+sources/
+normalized/
+indexes/
+models/
+databases/
+containers/
+backups/
+logs/
+
+The application produced in Replit must eventually run on this server.
+
+---
+
+# 4. REPLIT'S ROLE
+
+Replit is the DEVELOPMENT environment.
+
+It is NOT assumed to be the permanent archive host.
+
+Build the application in Replit so that it can be:
+
+1. developed in Replit,
+2. tested using local/test services,
+3. exported as normal source code,
+4. packaged using Docker,
+5. deployed onto the Oracle Linux PT-AI server,
+6. pointed at persistent `/ptai-data`,
+7. connected to local Ollama and Qdrant,
+8. operated without Replit afterward.
+
+Do not introduce proprietary Replit dependencies into the core ingestion engine.
+
+Replit-specific conveniences are acceptable for development, but the core application must remain independently deployable.
+
+---
+
+# 5. SYSTEM NAME
+
+Repository/application name:
+
+ptai-ingestion-engine
+
+Python package:
+
+ptai_ingestion
+
+CLI command:
+
+ptai-ingest
+
+---
+
+# 6. PRIMARY OBJECTIVE
+
+Build an autonomous but controlled archival ingestion engine that:
+
+DISCOVERS
+→ QUEUES
+→ VERIFIES
+→ RIGHTS-CHECKS
+→ CATALOGS
+→ ACQUIRES
+→ HASHES
+→ EXTRACTS / TRANSCRIBES
+→ NORMALIZES
+→ CHUNKS
+→ EMBEDS
+→ INDEXES
+→ AUDITS
+
+approved source material.
+
+The operator should NOT need to manually process every individual article, transcript, PDF, audio file, or video.
+
+However, uncertain cases must stop for human review.
+
+---
+
+# 7. HIGH-LEVEL ARCHITECTURE
+
+Approved Sources
+
+↓
+
+Discovery Adapters
+
+↓
+
+SQLite Discovery Queue
+
+↓
+
+Verifier
+
+↓
+
+Deduplication Engine
+
+↓
+
+Rights Gate
+
+↓
+
+Canonical Catalog / Source ID
+
+↓
+
+Acquisition Adapter
+
+↓
+
+Immutable Original Archive
+
+↓
+
+SHA-256 Integrity Record
+
+↓
+
+Extraction / Transcription
+
+↓
+
+Normalized Text + Metadata
+
+↓
+
+Paragraph-Aware Chunker
+
+↓
+
+Embedding Service
+
+↓
+
+Qdrant
+
+↓
+
+Retrieval API
+
+↓
+
+PT-AI Reasoning Layer
+
+↓
+
+Qwen / Gemma / Llama / cloud model / future model
+
+The ingestion engine must remain independent from the reasoning model.
+
+---
+
+# 8. SOURCE LIFECYCLE
+
+Minimum normal lifecycle:
+
+new
+→ verified
+→ approved
+→ acquired
+→ extracted
+→ indexed
+→ cataloged
+
+Exception states:
+
+duplicate
+
+needs_review
+
+rights_hold
+
+extraction_failed
+
+transcription_failed
+
+indexing_failed
+
+unavailable
+
+Every lifecycle transition must be recorded.
+
+Do not silently skip failures.
+
+---
+
+# 9. SOURCE IDENTIFICATION
+
+Every canonical PT-AI source must receive a permanent Source ID.
+
+Initial format:
+
+ST-000001
+ST-000002
+ST-000003
+...
+
+Do NOT derive identity purely from URLs.
+
+URLs can disappear or change.
+
+Source IDs must remain stable permanently.
+
+Future collections must support other prefixes/namespaces without redesigning the database.
+
+---
+
+# 10. WORK VS MANIFESTATION
+
+This distinction is extremely important.
+
+One intellectual work or sermon can have multiple manifestations.
+
+Example:
+
+Stephen Tong sermon
+├── original video
+├── audio
+├── official transcript
+├── Buletin PILLAR article
+├── translated transcript
+└── excerpt
+
+Do not automatically treat each manifestation as a completely unrelated intellectual work.
+
+The schema must allow:
+
+CANONICAL WORK
+
+and
+
+MANIFESTATIONS.
+
+Do not silently merge uncertain duplicates.
+
+Flag them for human review.
+
+---
+
+# 11. REQUIRED SOURCE METADATA
+
+Every source must retain as much of the following as available:
+
+source_id
+
+collection
+
+title
+
+speaker
+
+author
+
+date
+
+date_precision
+
+series_title
+
+episode_number
+
+language
+
+source_type
+
+publisher
+
+platform
+
+canonical_url
+
+original_url
+
+discovery_url
+
+discovery_date
+
+source_level
+
+rights_status
+
+archive_status
+
+local_original_path
+
+processed_path
+
+metadata_path
+
+SHA-256
+
+MIME type
+
+file size
+
+transcript_status
+
+transcript_provenance
+
+verified_by_speaker
+
+topics
+
+Bible passages
+
+people mentioned
+
+works mentioned
+
+source citations
+
+processing timestamps
+
+software versions
+
+model versions
+
+quality score
+
+review status
+
+error log
+
+notes
+
+For audio/video transcript segments also preserve timestamps.
+
+Never label an automatically generated transcript as speaker-verified.
+
+---
+
+# 12. PROVENANCE REQUIREMENT
+
+Every piece of searchable text must ultimately be traceable back to:
+
+Source ID
+
+*
+
+manifestation
+
+*
+
+original artifact or URL
+
+*
+
+processing method
+
+*
+
+location within source
+
+For media:
+
+include timestamps.
+
+For PDF:
+
+include page where technically practical.
+
+For HTML:
+
+preserve meaningful section/heading context.
+
+PT-AI should eventually be able to answer:
+
+"Where exactly did this information come from?"
+
+---
+
+# 13. INITIAL SOURCE ADAPTERS
+
+Implement a pluggable adapter architecture.
+
+Initial adapters:
+
+1. Local Drop Folder
+2. Generic HTML
+3. Direct PDF
+4. Buletin PILLAR
+5. REC Singapore
+6. YouTube metadata/discovery
+
+Adapters must implement a common interface.
+
+For example:
+
+discover()
+
+inspect()
+
+acquire()
+
+extract_metadata()
+
+Do not tightly couple pipeline logic to individual websites.
+
+---
+
+# 14. DISCOVERY
+
+The Discovery Agent scans configured approved sources.
+
+It identifies candidate material without immediately treating it as trusted archival content.
+
+Insert candidates into SQLite discovery_queue.
+
+Minimum candidate data:
+
+platform
+
+adapter
+
+title
+
+URL
+
+discovered_at
+
+possible speaker/author
+
+source type
+
+status
+
+discovery metadata
+
+Discovery must be incremental.
+
+Do not repeatedly create the same candidate.
+
+---
+
+# 15. VERIFICATION
+
+Before acquisition:
+
+normalize URL
+
+check existing catalog
+
+check existing queue
+
+check known aliases
+
+estimate source type
+
+verify likely Stephen Tong authorship/speaker role
+
+identify probable duplicates
+
+identify manifestation relationships
+
+If uncertain:
+
+status = needs_review
+
+Do not guess.
+
+---
+
+# 16. RIGHTS GATE
+
+Rights/access status must be explicit.
+
+Suggested states:
+
+unknown
+
+public_metadata_only
+
+catalog_only_pending_review
+
+permitted_archive
+
+restricted
+
+rights_hold
+
+The software must NOT:
+
+bypass paywalls
+
+bypass authentication
+
+bypass DRM
+
+circumvent access controls
+
+ignore explicit source restrictions
+
+automatically redistribute copyrighted archives publicly
+
+Discovery/cataloging may be allowed even when downloading is not.
+
+Keep metadata discovery separate from archival permission.
+
+---
+
+# 17. ORIGINAL ARCHIVE
+
+When acquisition is permitted:
+
+save the original artifact before transformation.
+
+Compute SHA-256.
+
+Store:
+
+original filename
+
+safe internal filename
+
+source URL
+
+download timestamp
+
+content type
+
+file size
+
+SHA-256
+
+Original archive files should behave as write-once artifacts.
+
+Derived files may be rebuilt.
+
+Do not overwrite originals during normal processing.
+
+---
+
+# 18. DEDUPLICATION
+
+Implement several layers.
+
+### URL duplication
+
+Normalize:
+
+scheme
+
+hostname
+
+trailing slash
+
+tracking parameters
+
+known canonical forms
+
+### Binary duplication
+
+SHA-256 exact matching.
+
+### Metadata duplication
+
+Compare:
+
+title
+
+speaker
+
+date
+
+series
+
+publisher
+
+### Semantic/near duplication
+
+Potential future enhancement.
+
+For MVP, probable near-duplicates should be flagged for review rather than automatically merged.
+
+---
+
+# 19. TEXT / HTML PROCESSING
+
+Extract meaningful content while removing:
+
+navigation
+
+menus
+
+scripts
+
+advertisements
+
+comments
+
+cookie banners
+
+repeated boilerplate
+
+Preserve:
+
+headings
+
+paragraphs
+
+quotations
+
+Bible references
+
+lists
+
+meaningful ordering
+
+source metadata
+
+Do not rewrite theological content.
+
+Do not "correct" Stephen Tong's words merely because the system believes something is wrong.
+
+---
+
+# 20. PDF PROCESSING
+
+Prefer embedded PDF text extraction.
+
+Use OCR only when necessary.
+
+OCR should be a fallback for:
+
+image-only pages
+
+scanned books
+
+unreadable embedded text
+
+Record:
+
+extraction method
+
+OCR engine
+
+software version
+
+quality/confidence information where available
+
+page numbers
+
+Do not discard the original PDF.
+
+---
+
+# 21. AUDIO / VIDEO PROCESSING
+
+For permitted media:
+
+preserve metadata
+
+preserve original media where rights permit
+
+generate timestamped transcript
+
+record transcription engine/model/version
+
+Speaker diarization is optional for MVP.
+
+Do not automatically mark machine transcripts as verified.
+
+Transcript states should include concepts such as:
+
+machine_generated
+
+published_transcript
+
+human_reviewed
+
+speaker_verified
+
+unknown
+
+---
+
+# 22. LANGUAGE POLICY
+
+Preserve the source language.
+
+Do NOT automatically translate during archival ingestion.
+
+Translation is a derived manifestation.
+
+Example:
+
+Original Indonesian sermon
+
+→ Indonesian archival transcript
+
+→ optional English translation later
+
+Both must remain linked.
+
+The translation must never replace the original.
+
+---
+
+# 23. CHUNKING
+
+Implement paragraph-aware chunking.
+
+Do not blindly cut every N characters.
+
+Chunk configuration must be externalized.
+
+Include configurable:
+
+maximum chunk size
+
+minimum chunk size
+
+overlap
+
+Each chunk must preserve context.
+
+At minimum:
+
+source_id
+
+manifestation_id
+
+chunk_index
+
+title
+
+publisher
+
+source_url
+
+text
+
+language
+
+section heading where available
+
+page/timestamp where available
+
+---
+
+# 24. EMBEDDINGS
+
+Embedding configuration must NOT be hard-coded.
+
+Current default:
+
+nomic-embed-text
+
+Current dimension:
+
+768
+
+For nomic embeddings use role prefixes appropriately:
+
+Documents:
+
+search_document:
+
+Queries:
+
+search_query:
+
+Store embedding configuration/version so the index can be reproduced.
+
+---
+
+# 25. QDRANT
+
+Current collection:
+
+ptai_sources
+
+Each vector payload must include at minimum:
+
+source_id
+
+manifestation_id if available
+
+chunk_index
+
+title
+
+publisher
+
+source_url
+
+language
+
+exact chunk text
+
+section/page/timestamp where available
+
+Point IDs must be globally unique and stable.
+
+Recommended deterministic identity:
+
+hash(source_id + manifestation_id + chunk_index + chunking_version)
+
+Re-indexing one source must replace only that source's vector records.
+
+It must NEVER overwrite another source.
+
+Indexing must be idempotent.
+
+---
+
+# 26. AUTHORITATIVE DATA
+
+The following are authoritative:
+
+original files
+
+processed text
+
+metadata
+
+SQLite scholarly catalog
+
+audit history
+
+Qdrant is NOT authoritative.
+
+The vector index must be completely rebuildable.
+
+If Qdrant is deleted, PT-AI must be capable of reconstructing it from the archive.
+
+---
+
+# 27. SQLITE DATABASE
+
+Use migrations.
+
+Do not rely on manually created schemas.
+
+Suggested tables:
+
+collections
+
+works
+
+sources
+
+manifestations
+
+discovery_queue
+
+processing_events
+
+people
+
+source_people
+
+works_cited
+
+source_works_cited
+
+bible_references
+
+source_bible_references
+
+rights_records
+
+processing_runs
+
+system_versions
+
+Schema should support future collections beyond Stephen Tong.
+
+Do not delete existing catalog data during migration.
+
+---
+
+# 28. PROCESSING EVENTS / AUDIT
+
+Every significant operation must create an audit event.
+
+Record:
+
+timestamp
+
+source_id
+
+manifestation_id
+
+pipeline stage
+
+previous state
+
+new state
+
+status
+
+elapsed time
+
+software version
+
+model version
+
+message
+
+error
+
+Every failure must remain inspectable.
+
+---
+
+# 29. CLI
+
+Implement:
+
+ptai-ingest discover
+
+ptai-ingest queue
+
+ptai-ingest process
+
+ptai-ingest process ST-000123
+
+ptai-ingest reindex ST-000123
+
+ptai-ingest status
+
+ptai-ingest retry --failed
+
+ptai-ingest review
+
+ptai-ingest verify-integrity
+
+ptai-ingest rebuild-index
+
+Useful options:
+
+--dry-run
+
+--json
+
+--verbose
+
+--source
+
+--adapter
+
+The CLI must work without the web dashboard.
+
+---
+
+# 30. WEB OPERATOR DASHBOARD
+
+Unlike the earliest prototype PRD, for the Replit development version build a **simple operator dashboard** because it will make development and testing substantially easier.
+
+Do NOT make it a complex public application.
+
+Suggested implementation:
+
+FastAPI backend
+
+*
+
+simple server-rendered HTML or lightweight frontend
+
+The dashboard should show:
+
+Total discovered
+
+Queued
+
+Verified
+
+Approved
+
+Acquired
+
+Extracted
+
+Indexed
+
+Cataloged
+
+Failed
+
+Needs Review
+
+Rights Hold
+
+Recent processing events
+
+Sources
+
+Manifestations
+
+Queue
+
+Errors
+
+The operator should be able to open a source and inspect:
+
+metadata
+
+provenance
+
+processing history
+
+original location
+
+processed text
+
+rights status
+
+index status
+
+errors
+
+Do not expose archived copyrighted source files publicly by default.
+
+---
+
+# 31. HUMAN REVIEW QUEUE
+
+The engine MUST stop automation when:
+
+Stephen Tong authorship/speaker identity is uncertain
+
+rights status is unclear
+
+probable duplicate cannot be confidently resolved
+
+transcript quality is poor
+
+metadata conflicts
+
+source appears modified
+
+source disappeared
+
+preservation action could create rights concerns
+
+Human review actions:
+
+approve
+
+reject
+
+mark duplicate
+
+link manifestation
+
+rights hold
+
+retry
+
+edit metadata
+
+Every manual action must be audited.
+
+---
+
+# 32. CONFIGURATION
+
+Use YAML configuration plus environment variables for secrets.
+
+Example:
+
+config.yml
+
+Configuration must include:
+
+data_root
+
+database path
+
+approved sources
+
+adapter type
+
+crawl interval
+
+rate limits
+
+download permissions
+
+Qdrant URL
+
+Qdrant collection
+
+Ollama URL
+
+embedding model
+
+embedding dimensions
+
+chunk settings
+
+transcription backend
+
+logging level
+
+scheduler settings
+
+Replit development settings and production settings must be separable.
+
+---
+
+# 33. ENVIRONMENT MODES
+
+Support at least:
+
+development
+
+test
+
+production
+
+Development/Replit may use:
+
+./data
+
+Production default:
+
+/ptai-data/pak-tong
+
+Never hard-code `/ptai-data` throughout application logic.
+
+Use configuration.
+
+---
+
+# 34. DOCKER
+
+Deliver:
+
+Dockerfile
+
+docker-compose.yml
+
+docker-compose.dev.yml if useful
+
+The ingestion application must run independently in Docker.
+
+Production Compose should support connection to:
+
+Ollama
+
+Qdrant
+
+persistent archive storage
+
+SQLite
+
+The application must restart cleanly after host reboot.
+
+---
+
+# 35. OLLAMA
+
+Current production service:
+
+http://localhost:11434
+
+However this must be configurable.
+
+Do not assume Ollama is inside the same container.
+
+Depending on deployment it may be:
+
+host service
+
+separate Docker container
+
+remote development endpoint
+
+Implement an Ollama client abstraction.
+
+---
+
+# 36. QDRANT
+
+Current production endpoint:
+
+http://localhost:6333
+
+Again:
+
+make configurable.
+
+Implement a Qdrant repository/service layer instead of scattering HTTP calls throughout application code.
+
+---
+
+# 37. REASONING MODEL SEPARATION
+
+This requirement is CRITICAL.
+
+Current PT-AI testing uses:
+
+Qwen 2.5 7B
+
+But:
+
+DO NOT redesign the ingestion engine around Qwen.
+
+Future PT-AI may use:
+
+Qwen
+
+Gemma
+
+Llama
+
+OpenAI
+
+other cloud models
+
+future local models
+
+The ingestion engine should not care.
+
+Its job ends at producing a trustworthy searchable archive.
+
+---
+
+# 38. RETRIEVAL API
+
+Provide a clean internal retrieval API for future PT-AI clients.
+
+Example:
+
+POST /api/search
+
+Request:
+
+{
+"query": "...",
+"limit": 8,
+"collection": "stephen-tong"
+}
+
+Response should return evidence records containing:
+
+score
+
+source_id
+
+manifestation_id
+
+title
+
+chunk_index
+
+text
+
+publisher
+
+source_url
+
+page
+
+timestamp
+
+language
+
+This API returns evidence.
+
+It should NOT require Qwen.
+
+---
+
+# 39. CURRENT PT-AI ANSWERING PRINCIPLE
+
+The existing PT-AI prototype already follows an important rule:
+
+PT-AI answers questions using retrieved archive evidence rather than treating the LLM's pretrained knowledge as authoritative.
+
+Maintain compatibility with this principle.
+
+The reasoning layer should be able to receive retrieved evidence formatted approximately as:
+
+[ST-000001 | chunk 4 | Filsafat Asia: Bagian 1]
+
+<exact evidence text>
+
+The reasoning layer can then cite Source IDs.
+
+---
+
+# 40. INSUFFICIENT EVIDENCE BEHAVIOR
+
+PT-AI must support a strict archival answer mode.
+
+When retrieved sources genuinely do not support an answer, the reasoning layer can respond:
+
+"The current PT-AI archive does not contain sufficient evidence to answer this reliably."
+
+The ingestion engine itself should therefore prioritize retrieval quality and provenance over simply returning something.
+
+---
+
+# 41. SECURITY
+
+Run non-root wherever practical.
+
+Never execute downloaded content.
+
+Sanitize filenames.
+
+Prevent path traversal.
+
+Use HTTP timeouts.
+
+Limit download sizes.
+
+Implement polite rate limiting.
+
+Respect source restrictions.
+
+Do not put secrets in:
+
+Git
+
+SQLite source metadata
+
+archived source metadata
+
+logs
+
+Use environment variables.
+
+---
+
+# 42. LOGGING
+
+Use structured JSON logging.
+
+Fields should include:
+
+timestamp
+
+source_id
+
+manifestation_id
+
+adapter
+
+pipeline_stage
+
+status
+
+elapsed_ms
+
+error_type
+
+error_message
+
+processing_run_id
+
+Logs must be suitable for both CLI and future operational monitoring.
+
+---
+
+# 43. SCHEDULER
+
+Support unattended recurring discovery.
+
+Do not make the scheduler inseparable from the pipeline.
+
+The same operations must be callable manually.
+
+The production deployment may eventually use:
+
+internal scheduler
+
+or
+
+systemd timer
+
+or
+
+external cron.
+
+Therefore expose pipeline operations independently.
+
+---
+
+# 44. BACKUP / RESTORE
+
+Document how to back up:
+
+SQLite catalog
+
+metadata
+
+configuration
+
+processed text
+
+original archive
+
+Do not treat Qdrant as essential backup data because it can be rebuilt.
+
+Provide:
+
+backup script
+
+restore instructions
+
+Qdrant rebuild command
+
+---
+
+# 45. ARCHIVE INTEGRITY
+
+Implement:
+
+ptai-ingest verify-integrity
+
+It should compare stored SHA-256 hashes against preserved originals.
+
+Report:
+
+OK
+
+missing
+
+hash mismatch
+
+unreadable
+
+Never automatically "repair" an original whose hash changed.
+
+Flag it.
+
+---
+
+# 46. INITIAL PILOT CONTENT
+
+The existing PT-AI archive already contains initial Stephen Tong catalog work.
+
+Known initial examples include:
+
+ST-000001
+Filsafat Asia: Bagian 1
+
+ST-000002
+Filsafat Asia: Bagian 32
+
+ST-000003
+Filsafat Asia: Bagian 33
+
+Publisher/source:
+
+Buletin PILLAR
+
+Do NOT blindly recreate these records.
+
+Database migrations/import logic must preserve existing Source IDs and avoid duplicate creation.
+
+---
+
+# 47. INITIAL MVP DEVELOPMENT ORDER
+
+Build this incrementally.
+
+## Phase 1 — Foundation
+
+Create:
+
+repository structure
+
+configuration
+
+SQLite migrations
+
+models
+
+source lifecycle
+
+logging
+
+storage abstraction
+
+SHA-256 hashing
+
+Source ID generation
+
+CLI
+
+Local Drop adapter
+
+Exit condition:
+
+A local TXT/HTML/PDF file can be ingested into the catalog with preserved original, metadata, processed text, and audit history.
+
+---
+
+## Phase 2 — Qdrant Integration
+
+Implement:
+
+chunker
+
+Ollama embeddings
+
+Qdrant repository
+
+stable vector IDs
+
+idempotent reindexing
+
+rebuild-index
+
+Exit condition:
+
+A locally ingested source automatically becomes searchable in Qdrant.
+
+---
+
+## Phase 3 — Buletin PILLAR
+
+Implement:
+
+discovery
+
+metadata parsing
+
+HTML acquisition
+
+content extraction
+
+deduplication
+
+rights handling
+
+automatic queue processing
+
+Exit condition:
+
+A new approved PILLAR article can travel automatically from discovery to searchable Qdrant evidence.
+
+---
+
+## Phase 4 — Dashboard
+
+Implement operator UI.
+
+Exit condition:
+
+Operator can inspect pipeline status and resolve needs-review records without editing SQLite manually.
+
+---
+
+## Phase 5 — REC / YouTube Discovery
+
+Implement:
+
+REC Singapore adapter
+
+YouTube metadata/discovery adapter
+
+Do not automatically download restricted media.
+
+Exit condition:
+
+Candidates enter the catalog/queue correctly with provenance and rights gates.
+
+---
+
+## Phase 6 — Media Transcription
+
+Implement configurable transcription pipeline.
+
+Timestamp transcript segments.
+
+Exit condition:
+
+Permitted media can become a timestamped searchable transcript while retaining provenance.
+
+---
+
+## Phase 7 — Production Packaging
+
+Complete:
+
+Docker
+
+Compose
+
+persistent paths
+
+health checks
+
+scheduler
+
+backup
+
+restore
+
+documentation
+
+Exit condition:
+
+Application can be moved from Replit to Oracle Linux and run without Replit.
+
+---
+
+# 48. TESTING
+
+Required unit tests:
+
+URL normalization
+
+Source ID allocation
+
+SHA-256
+
+deduplication
+
+lifecycle transitions
+
+rights gate
+
+chunk generation
+
+stable Qdrant point IDs
+
+configuration loading
+
+Required integration tests:
+
+SQLite migration
+
+local file ingestion
+
+Qdrant indexing
+
+reindexing
+
+retrieval
+
+pipeline resume
+
+Required behavior tests:
+
+ingesting same source twice creates no duplicate
+
+interrupt after acquisition then resume
+
+reindex source does not damage another source
+
+rights_hold cannot automatically acquire
+
+needs_review cannot automatically proceed
+
+original hash remains unchanged
+
+Qdrant can be destroyed and rebuilt
+
+---
+
+# 49. REPOSITORY STRUCTURE
+
+Use approximately:
+
+ptai-ingestion-engine/
+README.md
+Dockerfile
+docker-compose.yml
+docker-compose.dev.yml
+pyproject.toml
+config.example.yml
+.env.example
+.gitignore
+
+```
+ptai_ingestion/
+    __init__.py
+    cli.py
+    config.py
+    models.py
+    pipeline.py
+    catalog.py
+    storage.py
+    dedupe.py
+    rights.py
+    hashing.py
+    logging_config.py
+
+    adapters/
+        base.py
+        local_drop.py
+        generic_html.py
+        pdf.py
+        pillar.py
+        rec_singapore.py
+        youtube.py
+
+    extraction/
+        html.py
+        pdf.py
+        text.py
+
+    transcription/
+        base.py
+        local.py
+
+    indexing/
+        chunker.py
+        embeddings.py
+        qdrant.py
+
+    api/
+        app.py
+        routes_search.py
+        routes_sources.py
+        routes_review.py
+        routes_status.py
+
+    scheduler/
+        scheduler.py
+
+migrations/
+
+templates/
+
+static/
+
+scripts/
+    backup.py
+    restore.py
+
+tests/
+    fixtures/
+    unit/
+    integration/
+```
+
+---
+
+# 50. IMPLEMENTATION TECHNOLOGY
+
+Preferred:
+
+Python 3.11+
+
+FastAPI
+
+SQLAlchemy
+
+SQLite
+
+Pydantic
+
+httpx
+
+BeautifulSoup / lxml
+
+PyMuPDF or equivalent reliable PDF text extraction
+
+Qdrant client
+
+Ollama HTTP API
+
+Typer for CLI
+
+pytest
+
+Use libraries conservatively.
+
+Avoid unnecessary infrastructure.
+
+This system must eventually be maintainable on a small local server.
+
+---
+
+# 51. DO NOT OVERENGINEER
+
+Do NOT introduce unless actually necessary:
+
+Kubernetes
+
+Kafka
+
+Redis
+
+Celery
+
+Elasticsearch
+
+PostgreSQL
+
+large distributed systems
+
+microservice sprawl
+
+The current scale does not require them.
+
+SQLite + filesystem + Qdrant is intentional.
+
+Architecture should nevertheless allow future replacement of components.
+
+---
+
+# 52. DEVELOPMENT DATA SAFETY
+
+Replit must NEVER assume it can modify the actual production `/ptai-data`.
+
+Use test fixtures and development storage.
+
+Default Replit development root:
+
+./data
+
+Create sample sources.
+
+Do not depend on access to the real PT-AI server during initial development.
+
+---
+
+# 53. DOCUMENTATION
+
+README must explain:
+
+architecture
+
+installation
+
+Replit development
+
+configuration
+
+database migrations
+
+running CLI
+
+running dashboard
+
+adding an adapter
+
+running tests
+
+Docker build
+
+production deployment
+
+backup
+
+restore
+
+rebuild Qdrant
+
+integrity verification
+
+troubleshooting
+
+---
+
+# 54. PORTABILITY
+
+A core objective of PT-AI is eventual offline/portable operation.
+
+The archive may eventually be deployed in environments with limited or no internet access.
+
+Therefore:
+
+internet is needed for discovery/acquisition,
+
+but already archived knowledge must remain usable offline.
+
+Do not make retrieval depend on cloud APIs.
+
+Cloud reasoning models may be optional future clients, not mandatory infrastructure.
+
+---
+
+# 55. FUTURE EXTERNAL AI INTEGRATION
+
+The architecture should allow PT-AI's archive to later be queried by external AI systems through an API.
+
+For example:
+
+User asks question
+
+↓
+
+external AI calls PT-AI retrieval API
+
+↓
+
+PT-AI returns evidence + provenance
+
+↓
+
+AI reasons over evidence
+
+↓
+
+answer cites PT-AI Source IDs
+
+This means the archive can remain local while the reasoning engine changes.
+
+Do NOT implement vendor-specific cloud AI integration in the MVP.
+
+Just preserve the clean API boundary.
+
+---
+
+# 56. SCHOLARLY KNOWLEDGE GRAPH — FUTURE COMPATIBILITY
+
+Stephen Tong frequently refers to:
+
+theologians
+
+philosophers
+
+historical figures
+
+books
+
+sermons
+
+Bible passages
+
+events
+
+ideas
+
+The catalog schema should therefore permit relationships such as:
+
+Stephen Tong source
+
+→ cites
+
+Augustine
+
+→ cites work
+
+Confessions
+
+and:
+
+Stephen Tong source
+
+→ discusses
+
+John Calvin
+
+and:
+
+Stephen Tong source
+
+→ references
+
+Romans 12:1
+
+Do not attempt to build a sophisticated graph database now.
+
+SQLite relationship tables are sufficient for MVP.
+
+But do not design a schema that prevents this future capability.
+
+---
+
+# 57. CONTENT EXTRACTION RULE
+
+Preservation takes priority over automated interpretation.
+
+For every transformation:
+
+ORIGINAL
+→ DERIVED ARTIFACT
+
+Record the relationship.
+
+Examples:
+
+video
+→ machine transcript
+
+PDF
+→ extracted text
+
+scanned PDF
+→ OCR text
+
+Indonesian transcript
+→ future English translation
+
+Never destroy the parent artifact.
+
+---
+
+# 58. ERROR PHILOSOPHY
+
+Never hide uncertainty.
+
+It is preferable for PT-AI to say:
+
+NEEDS REVIEW
+
+than silently create a false historical record.
+
+It is preferable to retain an uncertain transcript with an explicit quality flag than silently "correct" it.
+
+It is preferable to return insufficient evidence than invent an answer.
+
+---
+
+# 59. ACCEPTANCE CRITERIA FOR MVP
+
+The MVP is successful when:
+
+1. A configured source can be discovered automatically.
+
+2. Candidate enters SQLite queue.
+
+3. Duplicate detection runs.
+
+4. Rights gate runs.
+
+5. Approved source receives a stable Source ID.
+
+6. Original artifact is preserved.
+
+7. SHA-256 is recorded.
+
+8. Processed searchable text is produced.
+
+9. Metadata and provenance are retained.
+
+10. Text is paragraph-aware chunked.
+
+11. Embeddings are generated.
+
+12. Chunks are indexed into Qdrant.
+
+13. Running ingestion again creates no duplicates.
+
+14. Search API retrieves the source.
+
+15. Returned evidence contains Source ID and provenance.
+
+16. Failed processing is visible.
+
+17. Failed processing can resume.
+
+18. needs_review items stop.
+
+19. rights_hold items stop.
+
+20. Qdrant can be rebuilt.
+
+21. Application survives restart.
+
+22. Application can be Dockerized and moved from Replit to Oracle Linux.
+
+---
+
+# 60. FIRST TASK FOR REPLIT AGENT
+
+Do NOT attempt to implement the entire system in one uncontrolled coding pass.
+
+Start with Phase 1.
+
+First:
+
+1. Create the repository structure.
+2. Create `pyproject.toml`.
+3. Create configuration handling.
+4. Design SQLite schema and migrations.
+5. Implement Source ID generation.
+6. Implement lifecycle/state model.
+7. Implement audit event recording.
+8. Implement filesystem storage abstraction.
+9. Implement SHA-256 hashing.
+10. Implement Local Drop adapter.
+11. Implement text extraction.
+12. Implement initial CLI.
+13. Add tests.
+14. Add a simple dashboard showing catalog/queue/status.
+15. Create README.
+
+Then run the tests.
+
+After Phase 1 is working, report:
+
+FILES CREATED
+
+DATABASE SCHEMA
+
+COMMANDS AVAILABLE
+
+TEST RESULTS
+
+KNOWN LIMITATIONS
+
+NEXT PHASE
+
+Do not proceed to destructive or production-server operations.
+
+---
+
+# 61. IMPORTANT IMPLEMENTER RULES
+
+Before changing architecture:
+
+explain the reason.
+
+Before adding a major dependency:
+
+justify it.
+
+Never delete existing PT-AI records automatically.
+
+Never change existing Source IDs.
+
+Never silently merge scholarly sources.
+
+Never overwrite originals.
+
+Never treat generated AI content as an original source.
+
+Never make Qwen a permanent architectural dependency.
+
+Never make Replit a permanent architectural dependency.
+
+Never require internet access for querying already archived material.
+
+Always preserve provenance.
+
+Always make derived indexes rebuildable.
+
+Always make failures visible.
+
+Always favor archival integrity over convenience.
+
+---
+
+# 62. DEFINITION OF THE PRODUCT
+
+Remember this sentence throughout implementation:
+
+**PT-AI is not primarily an AI chatbot. PT-AI is a durable, provenance-first digital scholarly archive that multiple present and future AI systems can reason over.**
+
+Build the ingestion engine accordingly.
+
+BEGIN WITH PHASE 1 ONLY.

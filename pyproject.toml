@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ptai-ingestion-engine"
+version = "0.1.0"
+description = "Portable, provenance-first archival ingestion foundation for PT-AI"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "typer>=0.12",
+    "pyyaml>=6.0",
+    "fastapi>=0.110",
+    "uvicorn>=0.27",
+    "beautifulsoup4>=4.12",
+    "pymupdf>=1.23",
+    "pytest>=9.1.1",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+ptai-ingest = "ptai_ingestion.cli:app"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+include = ["ptai_ingestion*"]

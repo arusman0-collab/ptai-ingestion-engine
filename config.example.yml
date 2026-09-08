@@ -1,0 +1,25 @@
+environment: development
+data_root: ./data
+database_path: ./data/catalog/ptai_catalog.db
+logging_level: INFO
+collections:
+  - slug: stephen-tong
+    name: Stephen Tong
+    source_prefix: ST
+approved_sources:
+  - adapter: local_drop
+    path: ./data/drop
+    collection: stephen-tong
+    rights_status: permitted_archive
+chunking:
+  max_size: 1800
+  min_size: 300
+  overlap: 150
+embedding:
+  model: nomic-embed-text
+  dimensions: 768
+qdrant:
+  url: http://localhost:6333
+  collection: ptai_sources
+ollama:
+  url: http://localhost:11434
